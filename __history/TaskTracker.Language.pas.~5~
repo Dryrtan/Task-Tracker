@@ -1,0 +1,167 @@
+unit TaskTracker.Language;
+
+interface
+
+uses
+  System.SysUtils, System.Classes, System.JSON, System.IOUtils;
+
+type
+  TLanguage = (lgEnglish, lgPortuguese);
+
+  TLanguageManager = class
+  private
+    FCurrentLanguage: TLanguage;
+    FConfigFilePath: string;
+    procedure LoadLanguagePreference;
+    procedure SaveLanguagePreference;
+  public
+    constructor Create(const AConfigFilePath: string);
+    
+    function GetText(const AKey: string): string;
+    procedure SetLanguage(ALanguage: TLanguage);
+    property CurrentLanguage: TLanguage read FCurrentLanguage;
+  end;
+
+var
+  Lang: TLanguageManager;
+
+implementation
+
+const
+  // Textos em inglês e português
+  Translations: array[0..36, 0..2] of string = (
+    // Key, English, Portuguese
+    ('app_title_1', ' _____         _      _____              _               _____  _     _____', ' _____         _      _____              _               _____  _     _____'),
+    ('app_title_2', '|_   _|       | |    |_   _|            | |             /  __ \| |   |_   _|', '|_   _|       | |    |_   _|            | |             /  __ \| |   |_   _|'),
+    ('app_title_3', '  | | __ _ ___| | __   | |_ __ __ _  ___| | _____ _ __  | /  \/| |     | |', '  | | __ _ ___| | __   | |_ __ __ _  ___| | _____ _ __  | /  \/| |     | |'),
+    ('app_title_4', '  | |/ _` / __| |/ /   | | ''''_/ _` |/ __| |/ / _ \ ''''_| | |    | |     | |  ', '  | |/ _` / __| |/ /   | | ''''_/ _` |/ __| |/ / _ \ ''''_| | |    | |     | |  '),
+    ('app_title_5', '  | | (_| \__ \   <    | | | | (_| | (__|   <  __/ |    | \__/\| |_____| |_', '  | | (_| \__ \   <    | | | | (_| | (__|   <  __/ |    | \__/\| |_____| |_'),
+    ('app_title_6', '  \_/\__,_|___/_|\_\   \_/_|  \__,_|\___|_|\_\___|_|     \____/\_____/\___/', '  \_/\__,_|___/_|\_\   \_/_|  \__,_|\___|_|\_\___|_|     \____/\_____/\___/'),
+    
+    ('commands', 'Commands:', 'Comandos:'),
+    ('cmd_add', '  Task_Tracker add "description"          - Add a new task', '  Task_Tracker add "description"          - Adiciona uma nova tarefa'),
+    ('cmd_update', '  Task_Tracker update <id> "description"  - Update a task', '  Task_Tracker update <id> "description"  - Atualiza uma tarefa'),
+    ('cmd_delete', '  Task_Tracker delete <id>                - Delete a task', '  Task_Tracker delete <id>                - Deleta uma tarefa'),
+    ('cmd_mark_progress', '  Task_Tracker mark-in-progress <id>      - Mark task as in progress', '  Task_Tracker mark-in-progress <id>      - Marca tarefa como em progresso'),
+    ('cmd_mark_done', '  Task_Tracker mark-done <id>             - Mark task as done', '  Task_Tracker mark-done <id>             - Marca tarefa como concluída'),
+    ('cmd_list', '  Task_Tracker list                       - List all tasks', '  Task_Tracker list                       - Lista todas as tarefas'),
+    ('cmd_list_todo', '  Task_Tracker list todo                  - List pending tasks', '  Task_Tracker list todo                  - Lista tarefas pendentes'),
+    ('cmd_list_progress', '  Task_Tracker list in-progress           - List tasks in progress', '  Task_Tracker list in-progress           - Lista tarefas em progresso'),
+    ('cmd_list_done', '  Task_Tracker list done                  - List completed tasks', '  Task_Tracker list done                  - Lista tarefas concluídas'),
+    ('cmd_lang', '  Task_Tracker lang <en|pt>               - Change language', '  Task_Tracker lang <en|pt>               - Alterar idioma'),
+    
+    ('status', 'Status', 'Status'),
+    ('created', 'Created', 'Criado'),
+    ('updated', 'Updated', 'Atualizado'),
+    
+    ('error_empty_desc', 'Error: Description cannot be empty', 'Erro: Descrição não pode ser vazia'),
+    ('error_task_not_found', 'Error: Task not found', 'Erro: Tarefa não encontrada'),
+    ('error_missing_desc', 'Error: Missing description', 'Erro: Falta descrição'),
+    ('error_missing_id_desc', 'Error: Missing ID and/or description', 'Erro: Falta ID e/ou descrição'),
+    ('error_invalid_id', 'Error: Invalid ID', 'Erro: ID inválido'),
+    ('error_missing_id', 'Error: Missing ID', 'Erro: Falta ID'),
+    ('error_unknown_command', 'Unknown command: ', 'Comando desconhecido: '),
+    
+    ('success_task_added', 'Task added successfully (ID: %d)', 'Tarefa adicionada com sucesso (ID: %d)'),
+    ('success_task_updated', 'Task updated successfully', 'Tarefa atualizada com sucesso'),
+    ('success_task_deleted', 'Task deleted successfully', 'Tarefa deletada com sucesso'),
+    ('success_marked_progress', 'Task marked as in progress', 'Tarefa marcada como em progresso'),
+    ('success_marked_done', 'Task marked as done', 'Tarefa marcada como concluída'),
+    
+    ('no_tasks_found', 'No tasks found', 'Nenhuma tarefa encontrada'),
+    ('tasks_header', '=== TASKS ===', '=== TAREFAS ==='),
+    ('language_changed', 'Language changed to: %s', 'Idioma alterado para: %s'),
+    ('invalid_language', 'Invalid language. Use: en or pt', 'Idioma inválido. Use: en ou pt')
+  );
+
+constructor TLanguageManager.Create(const AConfigFilePath: string);
+begin
+  inherited Create;
+  FConfigFilePath := AConfigFilePath;
+  FCurrentLanguage := lgEnglish; // Padrão em inglês
+  LoadLanguagePreference;
+end;
+
+procedure TLanguageManager.LoadLanguagePreference;
+var
+  JSONStr: string;
+  JSONObj: TJSONObject;
+  LangStr: string;
+begin
+  if not TFile.Exists(FConfigFilePath) then
+    Exit;
+
+  try
+    JSONStr := TFile.ReadAllText(FConfigFilePath);
+    if JSONStr.Trim.IsEmpty then
+      Exit;
+
+    JSONObj := TJSONObject.ParseJSONValue(JSONStr) as TJSONObject;
+    try
+      if Assigned(JSONObj) then
+      begin
+        LangStr := JSONObj.GetValue<string>('language');
+        if LangStr = 'pt' then
+          FCurrentLanguage := lgPortuguese
+        else
+          FCurrentLanguage := lgEnglish;
+      end;
+    finally
+      JSONObj.Free;
+    end;
+  except
+    // Se houver erro, mantém o padrão
+  end;
+end;
+
+procedure TLanguageManager.SaveLanguagePreference;
+var
+  JSONObj: TJSONObject;
+  LangStr: string;
+begin
+  JSONObj := TJSONObject.Create;
+  try
+    if FCurrentLanguage = lgPortuguese then
+      LangStr := 'pt'
+    else
+      LangStr := 'en';
+    
+    JSONObj.AddPair('language', LangStr);
+    TFile.WriteAllText(FConfigFilePath, JSONObj.ToJSON);
+  finally
+    JSONObj.Free;
+  end;
+end;
+
+function TLanguageManager.GetText(const AKey: string): string;
+var
+  I: Integer;
+  LangIndex: Integer;
+begin
+  // Determina o índice da língua (1 = English, 2 = Portuguese)
+  if FCurrentLanguage = lgPortuguese then
+    LangIndex := 2
+  else
+    LangIndex := 1;
+
+  // Busca a chave
+  for I := Low(Translations) to High(Translations) do
+  begin
+    if Translations[I, 0] = AKey then
+    begin
+      Result := Translations[I, LangIndex];
+      Exit;
+    end;
+  end;
+
+  // Se não encontrar, retorna a chave
+  Result := AKey;
+end;
+
+procedure TLanguageManager.SetLanguage(ALanguage: TLanguage);
+begin
+  FCurrentLanguage := ALanguage;
+  SaveLanguagePreference;
+end;
+
+end.

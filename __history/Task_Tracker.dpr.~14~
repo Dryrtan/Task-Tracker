@@ -1,0 +1,244 @@
+﻿program Task_Tracker;
+
+{$APPTYPE CONSOLE}
+
+{$R *.res}
+
+uses
+   System.SysUtils,
+   System.IOUtils,
+   TaskTracker.Types in 'TaskTracker.Types.pas',
+   TaskTracker.Manager in 'TaskTracker.Manager.pas';
+
+var
+   TaskManager: TTaskManager;
+
+procedure ShowHelp;
+begin
+   Writeln('');
+   Writeln(' _____         _      _____              _               _____  _     _____');
+   Writeln('|_   _|       | |    |_   _|            | |             /  __ \| |   |_   _|');
+   Writeln('  | | __ _ ___| | __   | |_ __ __ _  ___| | _____ _ __  | /  \/| |     | |');
+   Writeln('  | |/ _` / __| |/ /   | | ''''_/ _` |/ __| |/ / _ \ ''''_| | |    | |     | |  ');
+   Writeln('  | | (_| \__ \   <    | | | | (_| | (__|   <  __/ |    | \__/\| |_____| |_');
+   Writeln('  \_/\__,_|___/_|\_\   \_/_|  \__,_|\___|_|\_\___|_|     \____/\_____/\___/');
+   Writeln('');
+   Writeln('');
+   Writeln('Comandos:');
+   Writeln('');
+   Writeln('  Task_Tracker add "description"          - Adiciona uma nova tarefa');
+   Writeln('  Task_Tracker update <id> "description"  - Atualiza uma tarefa');
+   Writeln('  Task_Tracker delete <id>                - Deleta uma tarefa');
+   Writeln('  Task_Tracker mark-in-progress <id>      - Marca tarefa como em progresso');
+   Writeln('  Task_Tracker mark-done <id>             - Marca tarefa como concluída');
+   Writeln('  Task_Tracker list                       - Lista todas as tarefas');
+   Writeln('  Task_Tracker list todo                  - Lista tarefas pendentes');
+   Writeln('  Task_Tracker list in-progress           - Lista tarefas em progresso');
+   Writeln('  Task_Tracker list done                  - Lista tarefas concluídas');
+   Writeln('');
+end;
+
+procedure PrintTask(ATask: TTask);
+begin
+   Writeln(Format('[%d] %s - Status: %s', [ATask.Id, ATask.Description, ATask.StatusToString]));
+   Writeln(Format('    Criado: %s | Atualizado: %s',
+      [DateTimeToStr(ATask.CreatedAt), DateTimeToStr(ATask.UpdatedAt)]));
+end;
+
+procedure HandleAdd(const ADescription: string);
+var
+   TaskId: Integer;
+begin
+   if ADescription.IsEmpty then
+   begin
+      Writeln('Erro: Descrição não pode ser vazia');
+      Exit;
+   end;
+
+   TaskId := TaskManager.AddTask(ADescription);
+   Writeln(Format('Tarefa adicionada com sucesso (ID: %d)', [TaskId]));
+end;
+
+procedure HandleUpdate(AId: Integer; const ADescription: string);
+begin
+   if ADescription.IsEmpty then
+   begin
+      Writeln('Erro: Descrição não pode ser vazia');
+      Exit;
+   end;
+
+   if TaskManager.UpdateTask(AId, ADescription) then
+      Writeln('Tarefa atualizada com sucesso')
+   else
+      Writeln('Erro:  Tarefa não encontrada');
+end;
+
+procedure HandleDelete(AId: Integer);
+begin
+   if TaskManager.DeleteTask(AId) then
+      Writeln('Tarefa deletada com sucesso')
+   else
+      Writeln('Erro: Tarefa não encontrada');
+end;
+
+procedure HandleMarkInProgress(AId: Integer);
+begin
+   if TaskManager.MarkInProgress(AId) then
+      Writeln('Tarefa marcada como em progresso')
+   else
+      Writeln('Erro: Tarefa não encontrada');
+end;
+
+procedure HandleMarkDone(AId: Integer);
+begin
+   if TaskManager.MarkDone(AId) then
+      Writeln('Tarefa marcada como concluída')
+   else
+      Writeln('Erro: Tarefa não encontrada');
+end;
+
+procedure HandleList(const AFilter: string);
+var
+   Tasks: TArray<TTask>;
+   Task: TTask;
+   Status: TTaskStatus;
+begin
+   if AFilter.IsEmpty or (AFilter = 'all') then
+      Tasks := TaskManager.ListAllTasks
+   else
+   begin
+      Status := TTask.StringToStatus(AFilter);
+      Tasks := TaskManager.ListTasksByStatus(Status);
+   end;
+
+   if Length(Tasks) = 0 then
+   begin
+      Writeln('Nenhuma tarefa encontrada');
+      Exit;
+   end;
+
+   Writeln('');
+   Writeln('=== TAREFAS ===');
+   for Task in Tasks do
+   begin
+      PrintTask(Task);
+      Writeln('');
+   end;
+end;
+
+procedure ProcessCommand;
+var
+   Command: string;
+   TaskId: Integer;
+begin
+   if ParamCount = 0 then
+   begin
+      ShowHelp;
+      if Command = '' then
+         Exit;
+   end;
+
+   Command := LowerCase(ParamStr(1));
+
+   if Command = 'add' then
+   begin
+      if ParamCount < 2 then
+         Writeln('Erro: Falta descrição')
+      else
+         HandleAdd(ParamStr(2));
+   end
+   else
+      if Command = 'update' then
+      begin
+         if ParamCount < 3 then
+            Writeln('Erro: Falta ID e/ou descrição')
+         else
+         begin
+            TaskId := StrToIntDef(ParamStr(2), -1);
+            if TaskId = -1 then
+               Writeln('Erro: ID inválido')
+            else
+               HandleUpdate(TaskId, ParamStr(3));
+         end;
+      end
+      else
+         if Command = 'delete' then
+         begin
+            if ParamCount < 2 then
+               Writeln('Erro: Falta ID')
+            else
+            begin
+               TaskId := StrToIntDef(ParamStr(2), -1);
+               if TaskId = -1 then
+                  Writeln('Erro: ID inválido')
+               else
+                  HandleDelete(TaskId);
+            end;
+         end
+         else
+            if Command = 'mark-in-progress' then
+            begin
+               if ParamCount < 2 then
+                  Writeln('Erro: Falta ID')
+               else
+               begin
+                  TaskId := StrToIntDef(ParamStr(2), -1);
+                  if TaskId = -1 then
+                     Writeln('Erro: ID inválido')
+                  else
+                     HandleMarkInProgress(TaskId);
+               end;
+            end
+            else
+               if Command = 'mark-done' then
+               begin
+                  if ParamCount < 2 then
+                     Writeln('Erro: Falta ID')
+                  else
+                  begin
+                     TaskId := StrToIntDef(ParamStr(2), -1);
+                     if TaskId = -1 then
+                        Writeln('Erro: ID inválido')
+                     else
+                        HandleMarkDone(TaskId);
+                  end;
+               end
+               else
+                  if Command = 'list' then
+                  begin
+                     if ParamCount >= 2 then
+                        HandleList(ParamStr(2))
+                     else
+                        HandleList('');
+                  end
+                  else
+                  begin
+                     Writeln('Comando desconhecido: ' + Command);
+                     ShowHelp;
+                  end;
+end;
+
+var
+   TasksFilePath: string;
+begin
+   try
+      // Define o caminho do arquivo tasks.json no diretório do executável
+      TasksFilePath := TPath.Combine(ExtractFilePath(ParamStr(0)), 'tasks.json');
+
+      TaskManager := TTaskManager.Create(TasksFilePath);
+      try
+         ProcessCommand;
+      finally
+         TaskManager.Free;
+      end;
+   except
+      on E: Exception do
+      begin
+         Writeln('Erro:  ' + E.Message);
+         ExitCode := 1;
+      end;
+   end;
+end.
+
+
+
