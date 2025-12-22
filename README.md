@@ -4,13 +4,13 @@ A command-line interface (CLI) application for managing tasks, built with Delphi
 
 ## Features
 
-- ? Add new tasks
-- ?? Update existing tasks
-- ??? Delete tasks
-- ?? Track task status (Todo, In Progress, Done)
-- ?? List tasks with various filters
-- ?? Multi-language support (English and Portuguese)
-- ?? JSON-based storage
+- ➕ Add new tasks
+- ✏️ Update existing tasks
+- 🗑️ Delete tasks
+- 🔄 Track task status (Todo, In Progress, Done)
+- 🔍 List tasks with various filters
+- 🌐 Multi-language support (English and Portuguese)
+- 💾 JSON-based storage
 
 ## Installation
 
@@ -314,11 +314,11 @@ Task_Tracker delete 3
 
 ```
 Task Tracker/
-??? Task_Tracker.dpr          # Main program file
-??? TaskTracker.Types.pas     # Task data types and JSON serialization
-??? TaskTracker.Manager.pas   # Task management logic
-??? TaskTracker.Language.pas  # Multi-language support
-??? README.md                 # This file :)
+├── Task_Tracker.dpr          # Main program file
+├── TaskTracker.Types.pas     # Task data types and JSON serialization
+├── TaskTracker.Manager.pas   # Task management logic
+├── TaskTracker.Language.pas  # Multi-language support
+├── README.md                 # This file :)
 ```
 
 ## Requirements
